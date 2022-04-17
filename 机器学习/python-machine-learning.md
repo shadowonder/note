@@ -822,8 +822,288 @@ if __name__ == '__main__':
 
 #### 决策树
 
-决策树思想的来源非常朴素，程序设计中的条件分支结构就是if-then结构，最早的决策树就是利用这类结构分割数据的一种分类学习方法
+决策树思想的来源非常朴素，程序设计中的条件分支结构就是if-then结构，最早的决策树就是利用这类结构分割数据的一种分类学习方法.
+
+![决策树](./images/8.png)
+
+在决策树中每一个节点的位置就是优先级, 高优先级的节点会被优先计算, 然后才会进入下一个分类节点
+
+> 在信息论中, 使用binary search可以获取信息单位. 比如:
+> 32个小球中搜索，log32=5比特
+> 64个小球中搜索，log64=6比特
+
+从而计算信息熵为 $H = -(P_1logP_1 + P_2logP_2 + ... + P_{32}logP_{32})$, **信息和消除不确定是相联系的**. 数学公式也就是
+$$ H(x) = -{\sum}_{x \in X} P(x) log P(x) $$
+
+信息增益: 当得知一个特征条件, 减少的信息熵的大小: $g(D,A) = H(D) - H(D|A)$
+
+特征A对训练集数据D的信息增益$g(D,A)$ 等于集合D的信息熵$H(D)$减去特征A给定条件下信息条件熵$H(D|A)$.
+
+信息熵的计算公式:
+$$H(D)=-\sum^{K}_{k=1}\frac{|C_k|}{|D|}log\frac{|C_k|}{|D|}$$
+
+条件熵的计算公式:
+$$H(D|A)=-\sum^{n}_{i=1}\frac{|D_i|}{|D|}H(D_i)=-\sum^{n}_{i=1}\frac{|D_i|}{|D|}\sum^{K}_{k=1}\frac{|D_{ik}|}{|D_i|}log\frac{|D_{ik}|}{|D_i|} $$
+
+举例:
+![7.png](images/7.png)
+
+1. 针对特征`类别`计算信息熵. 此处的类别是最终分类结果.
+
+    一共有15个特征总数, 9个`是`6个`否`
+    $H(类别) = -(\frac{9}{15} log\frac{9}{15} + \frac{6}{15} log\frac{6}{15}) = 0.971$
+
+2. 在类别`特征`信息熵结果下, 计算`年龄`特征的信息增益,
+
+    $g(D,年龄) = H(D) - H(D'|年龄)$
+
+    - 年龄总共存在3各类别, 青年/中年/老年, 需要分别求出然后求和
+    - H(D) 就是我们之前求出来的`类别`的信息熵, 计算出来结果就是0.971
+    - 青年中年和老年的占比都为$\frac{5}{15}$也就是$\frac{1}{3}$
+        $$g(D,年龄) = 0.971 - [\frac{1}{3}(青年) + \frac{1}{3}(中年) + \frac{1}{3}(老年)]$$
+    - H(青年) = 当年龄全都是`青年`的时候, `类别`的信息熵. 当年龄为`青年`的时候类别3个`否`1个`是`
+        $$H(青年) = -(\frac{2}{5}log\frac{2}{5} + \frac{3}{5}log\frac{3}{5})$$
+        $$H(中年) = -(\frac{2}{5}log\frac{2}{5} + \frac{3}{5}log\frac{3}{5})$$
+        $$H(老年) = -(\frac{4}{5}log\frac{4}{5} + \frac{1}{5}log\frac{1}{5})$$
+
+3. 通过计算我们发现, g(类别,工作),g(类别,房子),g(类别,信贷)的计算结果最终为:`0.324`,`0.420`,`0.363`. 因此`有房子`的信息增益计算结果为最大. 因此`有房子`就为树的根节点, 也就是第一个判断节点
+
+>
+> 决策树同时还存在其他的计算
+>> id3: 信息增益, 最大准则, 也就是上面的运算策略
+>> c4.5: 信息增益比重, 最大准则
+>> cart:
+>>> 回归树: 平方误差取最小
+>>> 分类树: 基尼系数 取最小, 在sklearn中可以选择划分的原则. 划分更加仔细
+
+决策树api:
+
+```python
+class sklearn.tree.DecisionTreeClassifier(criterion=’gini’, max_depth=None,random_state=None)
+```
+
+分类器:
+
+- criterion:默认是`gini`系数，也可以选择信息增益的熵`entropy`
+- max_depth:树的深度大小
+- random_state:随机数种子
+
+method:
+
+- decision_path:返回决策树的路径
+
+```python
+# 决策树
+# 决策树存在一个升级版叫做随机森林
+import pandas as pd
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier, export_graphviz
+
+
+def discussion_tree_alg():
+    """
+    泰坦尼克号的数据分类
+    https://biostat.app.vumc.org/wiki/pub/Main/DataSets/titanic.txt
+
+    1: 存活
+    0: 死亡
+    """
+    print("决策树选择过程")
+    # 读取数据
+    data = pd.read_csv("E:\\Workspace\\ml\\machine-learning-python\\data\\titanic.txt")
+    print(data)
+
+    # 处理数据, 找出特征值和目标值
+    x = data[['pclass', 'age', 'sex']]  # 特征值的列
+    print(x)
+    y = data['survived']  # 结果集
+
+    # 处理缺失值 inplace表示替换. 把平均值填入age中
+    x['age'].fillna(x['age'].mean(), inplace=True)
+
+    # 分割数据集, 训练集, 测试集
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.25)
+
+    # 特征工程处理
+    dict = DictVectorizer(sparse=False)
+    # to_dict() 就是将样本转换为字典类型, orient="records"表示每一行为一个字典
+    x_train = dict.fit_transform(x_train.to_dict(orient="records"))
+    x_test = dict.fit_transform(x_test.to_dict(orient="records"))
+    print(dict.get_feature_names())
+    print(x_train)
+    print(x_test)
+    # ['age', 'pclass=1st', 'pclass=2nd', 'pclass=3rd', 'sex=female', 'sex=male']
+    # [[31.19418104  0.          0.          1.          1.          0.        ]
+    #  [39.          1.          0.          0.          1.          0.        ]
+    #  [ 1.          0.          1.          0.          1.          0.        ]
+    #  ...
+    #  [18.          0.          1.          0.          1.          0.        ]
+    #  [45.          0.          1.          0.          1.          0.        ]
+    #  [ 9.          0.          0.          1.          1.          0.        ]]
+
+    # 用决策树进行预测
+    dec = DecisionTreeClassifier()
+    # dec = DecisionTreeClassifier(max_depth=5)  # 深度为5
+    dec.fit(x_train, y_train)
+
+    print("预测的准确率:")
+    print(dec.score(x_test, y_test))
+
+    return None
+
+
+if __name__ == '__main__':
+    discussion_tree_alg()
+
+```
+
+1. 展示决策树的路径图api `sklearn.tree.export_graphviz()` 该函数能够导出DOT格式, api为: `tree.export_graphviz(estimator,out_file='tree.dot’,feature_names=[‘’,’’])`
+
+```python
+export_graphviz(dec, out_file="./tree.dot",
+                feature_names=['age', 'pclass=1st', 'pclass=2nd', 'pclass=3rd', 'sex=female', 'sex=male'])
+```
+
+2. 导出工具:(能够将dot文件转换为pdf、png), 安装graphviz:
+    ubuntu:sudo apt-get install graphviz
+    Mac:brew install graphviz
+    Windows: <https://graphviz.org/download/>
+
+    在shell中执行`dot -Tpng tree.dot -o tree.png`
+    然后就可以在目录下找到tree.png文件 ![9.png](images/9.png)
+
+> 需要注意的是, 上图所示的使用的就是基尼系数.由于基尼系数是强分类, 创建庞大的分类树, 基尼系数可能出现过拟合的问题. 此种问题的解决方案就是随机森林.
+
+决策树优点：
+
+- 简单的理解和解释，树木可视化。
+- 需要很少的数据准备，其他技术通常需要数据归一化，
+
+决策树缺点：
+
+- 决策树学习者可以创建不能很好地推广数据的过于复杂的树，这被称为过拟合。
+- 决策树可能不稳定，因为数据的小变化可能会导致完全不同的树被生成
+
+解决方案:
+
+- 减枝cart算法. 当样本数少于一定数目的时候或者满足一定条件的时候会对树进行剪枝. 主要针对叶子结点.
+- 随机森林
+
+#### 随机森林
+
+集成学习的方法. 集成学习通过建立几个模型组合的来解决单一预测问题。它的工作原理是生成多个分类器/模型，各自独立地学习和作出预测。这些预测最后结合成单预测，因此优于任何一个单分类的做出预测。
+
+随机森林的结果就是多个决策树的投票. 建立多个决策树的过程:
+
+单个树的建立过程(n个样本, m个特征):
+
+1. 随机在n个样本当中抽取一个样本, 在抽取样本的池子不变的情况下重复n次. 因此样本高概率存在重复.
+2. 随机在m个特征中获取$m_1$个特征
+
+因此,每个决策树的特征和样本不同
+
+随机森林api: `class sklearn.ensemble.RandomForestClassifier(n_estimators=10, criterion=’gini’, max_depth=None, bootstrap=True, random_state=None)` 可以看到这里的包包含的是`ensemble`类型, 也就是集成学习. (这里还是使用的是基尼系数, 也是推荐的)
+
+随机森林分类器:
+
+- n_estimators：integer，optional（default = 10） 森林里的树木数量, 可以使用120,200,300,500,800,1200
+- criteria：string，可选（default =“gini”）分割特征的测量方法
+- max_depth：integer或None，可选（默认=无）树的最大深度, 推荐: 5,8,15,25,30
+- max_features="auto" 每个决策树的最大特征数量
+  - auto: max_features=sqrt(n_features)
+  - sqrt: max_features=sqrt(n_features)
+  - log2: max_features=log2(n_features)
+  - none: max_features=n_features
+- bootstrap：boolean，optional（default = True）是否在构建树时使用放回抽样
+
+```python
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.model_selection import train_test_split, GridSearchCV
+
+
+def discussion_tree_alg():
+    """
+    泰坦尼克号的数据分类
+    https://biostat.app.vumc.org/wiki/pub/Main/DataSets/titanic.txt
+
+    1: 存活
+    0: 死亡
+    """
+    print("决策树选择过程")
+    # 读取数据
+    data = pd.read_csv("E:\\Workspace\\ml\\machine-learning-python\\data\\titanic.txt")
+    print(data)
+
+    # 处理数据, 找出特征值和目标值
+    x = data[['pclass', 'age', 'sex']]  # 特征值的列
+    print(x)
+    y = data['survived']  # 结果集
+
+    # 处理缺失值 inplace表示替换. 把平均值填入age中
+    x['age'].fillna(x['age'].mean(), inplace=True)
+
+    # 分割数据集, 训练集, 测试集
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.25)
+
+    # 特征工程处理
+    dict = DictVectorizer(sparse=False)
+    # to_dict() 就是将样本转换为字典类型, orient="records"表示每一行为一个字典
+    x_train = dict.fit_transform(x_train.to_dict(orient="records"))
+    x_test = dict.fit_transform(x_test.to_dict(orient="records"))
+    print(dict.get_feature_names_out())
+    print(x_train)
+    print(x_test)
+    # ['age', 'pclass=1st', 'pclass=2nd', 'pclass=3rd', 'sex=female', 'sex=male']
+    # [[31.19418104  0.          0.          1.          1.          0.        ]
+    #  [39.          1.          0.          0.          1.          0.        ]
+    #  [ 1.          0.          1.          0.          1.          0.        ]
+    #  ...
+    #  [18.          0.          1.          0.          1.          0.        ]
+    #  [45.          0.          1.          0.          1.          0.        ]
+    #  [ 9.          0.          0.          1.          1.          0.        ]]
+
+    # 使用随机森林
+    # (n_estimators=10, criterion=’gini’, max_depth=None, bootstrap=True, random_state=None)
+    rfc = RandomForestClassifier()  # 默认数据
+
+    # 网格搜索与交叉验证
+    print("正在进行网格参数调优...");
+    params = {"n_estimators": [120, 200, 300, 500, 800, 1200], "max_depth": [5, 8, 15, 25, 30]}
+    gc = GridSearchCV(rfc, param_grid=params, cv=2)  # 网格交叉验证, 配置交叉验证为2
+
+    gc.fit(x_train, y_train)
+
+    print("预测准确率")
+    print(gc.score(x_test, y_test))
+    print("选择的参数模型:")
+    print(gc.best_params_)
+
+    # 预测准确率
+    # 0.8297872340425532
+    # 选择的参数模型:
+    # {'max_depth': 5, 'n_estimators': 300}
+
+    return None
+
+
+if __name__ == '__main__':
+    discussion_tree_alg()
+
+```
+
+随机森林特点
+
+- 在当前所有算法中，具有极好的准确率
+- 能够有效地运行在大数据集上
+- 能够处理具有高维特征的输入样本，而且不需要降维
+- 能够评估各个特征在分类问题上的重要性
+- 对于缺省值问题也能够获得很好得结果
 
 ### 回归
+
+在大数据分析中，回归分析是一种预测性的建模技术，它研究的是因变量（目标）和自变量（预测器）之间的关系。这种技术通常用于预测分析，时间序列模型以及发现变量之间的因果关系。
 
 ### 聚类
