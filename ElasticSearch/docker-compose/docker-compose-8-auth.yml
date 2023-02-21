@@ -1,0 +1,28 @@
+version: '3.7'
+services:
+  elasticsearch:
+    image: elasticsearch:8.6.1
+    container_name: elasticsearch
+    volumes:
+      - ./data/8:/usr/share/elasticsearch/data
+    environment:
+      - "discovery.type=single-node"
+      - xpack.security.enabled=true
+      - ELASTIC_USERNAME=elastic
+      - ELASTIC_PASSWORD=MagicWord
+    ports:
+      - 9200:9200
+      - 9300:9300
+  kibana:
+    container_name: kibana
+    image: kibana:8.6.1
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - xpack.security.enabled=true
+      - "discovery.type=single-node"
+      - ELASTIC_USERNAME=elastic
+      - ELASTIC_PASSWORD=MagicWord  # 添加密码, 可以只是用密码不适用用户名
+    ports:
+      - 5601:5601
+    depends_on:
+      - elasticsearch

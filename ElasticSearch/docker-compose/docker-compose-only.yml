@@ -1,0 +1,10 @@
+version: '3.7'
+services:
+  elasticsearch:
+    image: elasticsearch:8.6.1
+    container_name: elasticsearch
+    volumes:
+      - ./data/8:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+      - 9300:9300
